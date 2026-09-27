@@ -18,11 +18,11 @@ interface Rocket {
   vx: number
   vy: number
   color: string
-  trail: { x: number; y: number; alpha: number }[]
+  trail: { x: number; y: number }[]
   exploded: boolean
 }
 
-const COLORS = ['#38bdf8', '#f472b6', '#fbbf24', '#34d399', '#a78bfa', '#fb7185']
+const COLORS = ['#38bdf8', '#f472b6', '#fbbf24', '#34d399', '#a78bfa', '#fb7185', '#ffffff']
 
 interface FireworksProps {
   active: boolean
@@ -36,17 +36,18 @@ export default function Fireworks({ active, onTap }: FireworksProps) {
   const rafRef = useRef<number>(0)
   const lastLaunchRef = useRef(0)
 
-  const launch = useCallback(() => {
+  const launch = useCallback((targetX?: number, targetY?: number) => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const x = canvas.width * (0.2 + Math.random() * 0.6)
-    const targetY = canvas.height * (0.15 + Math.random() * 0.35)
+    const x = targetX ?? canvas.width * (0.15 + Math.random() * 0.7)
+    const destY = targetY ?? canvas.height * (0.12 + Math.random() * 0.38)
     const color = COLORS[Math.floor(Math.random() * COLORS.length)]
+
     rocketsRef.current.push({
       x,
       y: canvas.height,
       vx: (Math.random() - 0.5) * 1.5,
-      vy: -((canvas.height - targetY) / 60),
+      vy: -((canvas.height - destY) / 45),
       color,
       trail: [],
       exploded: false,
@@ -54,10 +55,10 @@ export default function Fireworks({ active, onTap }: FireworksProps) {
   }, [])
 
   const explode = useCallback((rx: number, ry: number, color: string) => {
-    const count = 40 + Math.floor(Math.random() * 20)
+    const count = 45 + Math.floor(Math.random() * 25)
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 * i) / count
-      const speed = 2 + Math.random() * 4
+      const speed = 2.5 + Math.random() * 4.5
       particlesRef.current.push({
         x: rx,
         y: ry,
@@ -65,18 +66,19 @@ export default function Fireworks({ active, onTap }: FireworksProps) {
         vy: Math.sin(angle) * speed,
         alpha: 1,
         color,
-        size: 2 + Math.random() * 2,
+        size: Math.random() > 0.5 ? 4 : 3,
         life: 0,
-        maxLife: 60 + Math.random() * 40,
+        maxLife: 55 + Math.random() * 35,
       })
     }
   }, [])
 
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!active) return
-    launch()
+    const rect = e.currentTarget.getBoundingClientRect()
+    explode(e.clientX - rect.left, e.clientY - rect.top, COLORS[Math.floor(Math.random() * COLORS.length)])
     onTap?.()
-  }, [active, launch, onTap])
+  }, [active, explode, onTap])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -85,58 +87,54 @@ export default function Fireworks({ active, onTap }: FireworksProps) {
     if (!ctx) return
 
     const resize = () => {
-      canvas.width = canvas.offsetWidth
-      canvas.height = canvas.offsetHeight
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
     }
     resize()
+    window.addEventListener('resize', resize)
 
     const animate = () => {
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.15)'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Auto-launch when active
-      if (active && Date.now() - lastLaunchRef.current > 800 + Math.random() * 1200) {
+      if (active && Date.now() - lastLaunchRef.current > 550 + Math.random() * 600) {
         lastLaunchRef.current = Date.now()
         launch()
       }
 
-      // Update rockets
       rocketsRef.current = rocketsRef.current.filter((r) => {
         if (r.exploded) return false
-        r.trail.push({ x: r.x, y: r.y, alpha: 1 })
-        if (r.trail.length > 12) r.trail.shift()
+        r.trail.push({ x: r.x, y: r.y })
+        if (r.trail.length > 8) r.trail.shift()
         r.x += r.vx
         r.y += r.vy
-        r.vy += 0.05
+        r.vy += 0.09
 
         if (r.vy >= 0) {
           explode(r.x, r.y, r.color)
           return false
         }
 
-        // Draw trail
         r.trail.forEach((t, i) => {
           ctx.fillStyle = r.color
-          ctx.globalAlpha = (i / r.trail.length) * 0.6
-          ctx.fillRect(t.x - 1, t.y - 1, 2, 2)
+          ctx.globalAlpha = (i / r.trail.length) * 0.7
+          ctx.fillRect(Math.floor(t.x), Math.floor(t.y), 2, 2)
         })
         ctx.globalAlpha = 1
         return true
       })
 
-      // Update particles
       particlesRef.current = particlesRef.current.filter((p) => {
         p.life++
         p.x += p.vx
         p.y += p.vy
-        p.vy += 0.04
-        p.vx *= 0.99
+        p.vy += 0.06
+        p.vx *= 0.98
         p.alpha = 1 - p.life / p.maxLife
         if (p.alpha <= 0) return false
 
         ctx.fillStyle = p.color
         ctx.globalAlpha = p.alpha
-        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size)
+        ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size)
         ctx.globalAlpha = 1
         return true
       })
@@ -144,8 +142,7 @@ export default function Fireworks({ active, onTap }: FireworksProps) {
       rafRef.current = requestAnimationFrame(animate)
     }
 
-    animate()
-    window.addEventListener('resize', resize)
+    rafRef.current = requestAnimationFrame(animate)
 
     return () => {
       cancelAnimationFrame(rafRef.current)
@@ -159,9 +156,8 @@ export default function Fireworks({ active, onTap }: FireworksProps) {
     <canvas
       ref={canvasRef}
       onClick={handleClick}
-      className="fixed inset-0 z-30 pointer-events-auto"
+      className="fixed inset-0 w-screen h-screen z-50 pointer-events-auto"
       style={{ touchAction: 'manipulation' }}
-      aria-label="Tap for fireworks"
     />
   )
 }

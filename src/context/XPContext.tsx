@@ -11,15 +11,12 @@ export interface LevelConfig {
 export const LEVELS: LevelConfig[] = [
   { id: 'gate', name: 'Access Terminal', xpRequired: 50, icon: 'terminal' },
   { id: 'cake', name: 'Birthday Cake', xpRequired: 100, icon: 'cake' },
-  { id: 'memories', name: 'Memories Timeline', xpRequired: 150, icon: 'timeline' },
-  { id: 'gallery', name: 'Photo Gallery', xpRequired: 200, icon: 'photo' },
-  { id: 'videos', name: 'Video Theater', xpRequired: 250, icon: 'video' },
-  { id: 'reasons', name: 'Reasons Why', xpRequired: 300, icon: 'heart' },
-  { id: 'quiz', name: 'Birthday Quiz', xpRequired: 350, icon: 'quiz' },
-  { id: 'game', name: 'Mini Game', xpRequired: 400, icon: 'game' },
-  { id: 'wishes', name: 'Wishes Wall', xpRequired: 450, icon: 'star' },
-  { id: 'letter', name: 'Love Letter', xpRequired: 500, icon: 'mail' },
-  { id: 'secret', name: 'Secret Chamber', xpRequired: 600, icon: 'key' },
+  { id: 'gallery', name: 'Hall of Fame', xpRequired: 150, icon: 'photo' },
+  { id: 'reasons', name: 'Reasons Why', xpRequired: 200, icon: 'heart' },
+  { id: 'arcade', name: 'Arcade Arena', xpRequired: 250, icon: 'game' },
+  { id: 'wishes', name: 'Wishes Wall', xpRequired: 350, icon: 'star' },
+  { id: 'letter', name: 'Love Letter', xpRequired: 400, icon: 'mail' },
+  { id: 'secret', name: 'Secret Chamber', xpRequired: 500, icon: 'key' },
 ]
 
 interface XPContextValue {

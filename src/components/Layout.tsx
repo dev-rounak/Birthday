@@ -10,16 +10,11 @@ const NAV_ITEMS = [
   { path: '/', label: 'Home', icon: '⌂' },
   { path: '/hub', label: 'Hub', icon: '◈' },
   { path: '/cake', label: 'Cake', icon: '◉' },
-  { path: '/memories', label: 'Memories', icon: '❖' },
   { path: '/gallery', label: 'Gallery', icon: '▣' },
-  { path: '/videos', label: 'Videos', icon: '▶' },
   { path: '/reasons', label: 'Reasons', icon: '★' },
-  { path: '/quiz', label: 'Quiz', icon: '?' },
-  { path: '/game', label: 'Game', icon: '◆' },
-  { path: '/wishes', label: 'Wishes', icon: '✦' },
+  { path: '/arcade', label: 'Arcade', icon: '◆' },
   { path: '/letter', label: 'Letter', icon: '✉' },
-  { path: '/secret', label: 'Secret', icon: '⚷' },
-  { path: '/achievements', label: 'Awards', icon: '♛' },
+  { path: '/awards', label: 'Awards', icon: '♛' },
 ]
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -40,10 +35,9 @@ export default function Layout({ children }: { children: ReactNode }) {
             to={item.path}
             end={item.path === '/'}
             className={({ isActive }) =>
-              `font-pixel text-[8px] uppercase tracking-wider px-3 py-2 transition-all duration-200 border ${
-                isActive
-                  ? 'border-neon-sky text-neon-sky bg-neon-blue/10 shadow-[0_0_10px_rgba(56,189,248,0.3)]'
-                  : 'border-transparent text-soft/50 hover:text-neon-sky hover:border-neon-blue/30'
+              `font-pixel text-[8px] uppercase tracking-wider px-3 py-2 transition-all duration-200 border ${isActive
+                ? 'border-neon-sky text-neon-sky bg-neon-blue/10 shadow-[0_0_10px_rgba(56,189,248,0.3)]'
+                : 'border-transparent text-soft/50 hover:text-neon-sky hover:border-neon-blue/30'
               }`
             }
             style={{ borderRadius: '2px' }}
@@ -78,8 +72,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               to={item.path}
               end={item.path === '/'}
               className={({ isActive }) =>
-                `flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2.5 transition-all duration-200 ${
-                  isActive ? 'text-neon-sky' : 'text-soft/40'
+                `flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2.5 transition-all duration-200 ${isActive ? 'text-neon-sky' : 'text-soft/40'
                 }`
               }
             >

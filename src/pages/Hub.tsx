@@ -1,286 +1,311 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { person, dialogue, presetWishes } from '../config.js'
+import { useBuddy } from '../context/BuddyContext'
+import { useXP, LEVELS } from '../context/XPContext'
 import HudCard from '../components/HudCard'
 import Sprite from '../components/Sprite'
-import { useBuddy } from '../context/BuddyContext'
-import { useXP } from '../context/XPContext'
-import { person, dialogue, presetWishes } from '../config.js'
-import { sfx } from '../utils/sfx'
 
-function calcAge(dob: string): number {
-  const birth = new Date(dob)
-  const now = new Date()
-  let age = now.getFullYear() - birth.getFullYear()
-  const m = now.getMonth() - birth.getMonth()
-  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--
+interface TimeRemaining {
+  days: number
+  hours: number
+  minutes: number
+  seconds: number
+  isToday: boolean
+}
+
+function parseDate(dateStr: string): Date {
+  // Supports DDMMYYYY format as well as standard YYYY-MM-DD / ISO formats
+  if (/^\d{8}$/.test(dateStr)) {
+    const day = parseInt(dateStr.slice(0, 2), 10)
+    const month = parseInt(dateStr.slice(2, 4), 10) - 1
+    const year = parseInt(dateStr.slice(4, 8), 10)
+    return new Date(year, month, day)
+  }
+  return new Date(dateStr)
+}
+
+function calculateAge(dobStr: string): number {
+  const birthDate = parseDate(dobStr)
+  const today = new Date()
+  let age = today.getFullYear() - birthDate.getFullYear()
+  const m = today.getMonth() - birthDate.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--
+  }
   return age
 }
 
-function calcDaysTogether(start: string): number {
-  const startDate = new Date(start)
+function calculateDaysTogether(startDateStr: string): number {
+  if (!startDateStr) return 0
+  const start = parseDate(startDateStr)
   const now = new Date()
-  return Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+  const diffTime = Math.max(0, now.getTime() - start.getTime())
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24))
 }
 
-function getNextBirthday(dob: string): { isToday: boolean; days: number; hours: number; mins: number; secs: number } {
-  const birth = new Date(dob)
+function calculateNextBirthday(dobStr: string): TimeRemaining {
+  const birthDate = parseDate(dobStr)
   const now = new Date()
-  const next = new Date(now.getFullYear(), birth.getMonth(), birth.getDate(), 0, 0, 0)
 
-  if (next.getTime() < now.getTime()) {
-    next.setFullYear(now.getFullYear() + 1)
+  const currentYear = now.getFullYear()
+  let nextBday = new Date(currentYear, birthDate.getMonth(), birthDate.getDate())
+
+  const isToday =
+    now.getDate() === birthDate.getDate() && now.getMonth() === birthDate.getMonth()
+
+  if (now.getTime() > nextBday.getTime() && !isToday) {
+    nextBday = new Date(currentYear + 1, birthDate.getMonth(), birthDate.getDate())
   }
 
-  const isToday = now.getMonth() === birth.getMonth() && now.getDate() === birth.getDate()
-  const diff = next.getTime() - now.getTime()
-  const totalSecs = Math.floor(diff / 1000)
+  const diff = Math.max(0, nextBday.getTime() - now.getTime())
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24)
+  const minutes = Math.floor((diff / (1000 * 60)) % 60)
+  const seconds = Math.floor((diff / 1000) % 60)
 
-  return {
-    isToday,
-    days: Math.floor(totalSecs / 86400),
-    hours: Math.floor((totalSecs % 86400) / 3600),
-    mins: Math.floor((totalSecs % 3600) / 60),
-    secs: totalSecs % 60,
-  }
+  return { days, hours, minutes, seconds, isToday }
 }
-
-function getWishCount(): number {
-  let stored = 0
-  try {
-    const raw = localStorage.getItem('wishes')
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) stored = parsed.length
-    }
-  } catch {
-    // ignore
-  }
-  return stored + presetWishes.length
-}
-
-const LEVEL_TILES = [
-  { id: 'cake', path: '/cake', label: 'Cake', glow: 'pink' as const },
-  { id: 'memories', path: '/memories', label: 'Memories', glow: 'blue' as const },
-  { id: 'gallery', path: '/gallery', label: 'Gallery', glow: 'blue' as const },
-  { id: 'videos', path: '/videos', label: 'Videos', glow: 'pink' as const },
-  { id: 'reasons', path: '/reasons', label: 'Reasons', glow: 'blue' as const },
-  { id: 'quiz', path: '/quiz', label: 'Quiz', glow: 'pink' as const },
-  { id: 'game', path: '/game', label: 'Game', glow: 'blue' as const },
-  { id: 'wishes', path: '/wishes', label: 'Wishes', glow: 'pink' as const },
-  { id: 'letter', path: '/letter', label: 'Letter', glow: 'blue' as const },
-  { id: 'secret', path: '/secret', label: 'Secret', glow: 'pink' as const },
-]
 
 export default function Hub() {
   const navigate = useNavigate()
   const { say } = useBuddy()
-  const { isUnlocked, completed } = useXP()
-  const [countdown, setCountdown] = useState(getNextBirthday(person.dob))
-  const [wishCount, setWishCount] = useState(getWishCount())
+  const { isUnlocked, isLevelCompleted } = useXP()
   const [loading, setLoading] = useState(true)
-  const loadedRef = useRef(false)
+  const [wishesCount, setWishesCount] = useState(0)
+  const hasTriggeredGreeting = useRef(false)
 
-  // Redirect to / if gate not unlocked
+  // Countdown timer state
+  const [timeLeft, setTimeLeft] = useState<TimeRemaining>(() =>
+    calculateNextBirthday(person.dob || person.password)
+  )
+
+  // Protected route check: verify gate completion
   useEffect(() => {
-    if (!isUnlocked('hub')) {
+    const isGateUnlocked = isUnlocked('gate') || isLevelCompleted('gate')
+    if (!isGateUnlocked) {
       navigate('/', { replace: true })
       return
     }
-  }, [isUnlocked, navigate])
 
-  // Buddy waves with hub dialogue
-  useEffect(() => {
-    if (loadedRef.current) return
-    loadedRef.current = true
-    const hub = dialogue.hub
-    if (hub) {
-      say(hub.pose, hub.text, hub.face)
+    // Load total wishes (stored wishes + preset wishes)
+    try {
+      const stored = localStorage.getItem('wishes')
+      const localWishes = stored ? JSON.parse(stored) : []
+      const presets = Array.isArray(presetWishes) ? presetWishes.length : 0
+      setWishesCount(localWishes.length + presets)
+    } catch {
+      setWishesCount(Array.isArray(presetWishes) ? presetWishes.length : 0)
     }
-    const timer = setTimeout(() => setLoading(false), 600)
-    return () => clearTimeout(timer)
-  }, [say])
 
-  // Live countdown
+    setLoading(false)
+  }, [navigate, isUnlocked, isLevelCompleted])
+
+  // Buddy greeting: trigger once on load
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCountdown(getNextBirthday(person.dob))
+    if (!loading && !hasTriggeredGreeting.current) {
+      hasTriggeredGreeting.current = true
+      const hubDialogue = dialogue?.hub
+      if (hubDialogue) {
+        say('wave', hubDialogue.text, hubDialogue.face || 'smile')
+      } else {
+        say('wave', 'Welcome to Mission Control! Choose your path.', 'smile')
+      }
+    }
+  }, [loading, say])
+
+  // Live countdown ticker
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(calculateNextBirthday(person.dob || person.password))
     }, 1000)
-    return () => clearInterval(interval)
+    return () => clearInterval(timer)
   }, [])
 
-  // Refresh wish count when page regains focus
-  useEffect(() => {
-    const onFocus = () => setWishCount(getWishCount())
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
-  }, [])
+  const age = useMemo(() => calculateAge(person.dob || person.password), [])
+  const daysTogether = useMemo(
+    () => calculateDaysTogether(person.relationshipStart || person.startDate),
+    []
+  )
 
-  const age = calcAge(person.dob)
-  const daysTogether = calcDaysTogether(person.relationshipStart)
-
+  // Loading spinner with bubbletea prop
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 w-full mt-20">
-        <div className="bubbletea-spin">
-          <Sprite name="bubbletea" kind="props" scale={4} />
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="animate-bounce">
+          <Sprite name="bubbletea" kind="props" scale={3} />
         </div>
-        <div className="font-pixel text-[8px] text-neon-sky/50 uppercase tracking-widest">
-          Loading Mission Control
-          <span className="cursor-blink">{'\u258C'}</span>
-        </div>
+        <p className="font-pixel text-[10px] text-neon-sky tracking-widest animate-pulse">
+          INITIALIZING MISSION CONTROL...
+        </p>
       </div>
     )
   }
 
+  // Filter out 'gate' from interactive level map
+  const playableLevels = LEVELS.filter((lvl) => lvl.id !== 'gate')
+
   return (
-    <div className="flex flex-col items-center gap-6 w-full max-w-2xl mt-4">
-      <h1 className="font-pixel text-sm sm:text-base text-neon-sky uppercase tracking-widest">
-        {'\u25C8'} Mission Control {'\u25C8'}
-      </h1>
+    <div className="flex flex-col items-center gap-8 w-full max-w-4xl px-2 sm:px-4 py-4">
+      {/* Title & HUD Header */}
+      <div className="text-center space-y-2">
+        <div className="font-pixel text-[8px] sm:text-[10px] text-neon-pink uppercase tracking-widest">
+          {'\u25C0'} SECTOR 01: HUB {'\u25B6'}
+        </div>
+        <h1 className="font-pixel text-xl sm:text-3xl text-soft uppercase tracking-wider">
+          Mission Control
+        </h1>
+        <p className="font-body text-xs sm:text-sm text-soft/60">
+          Select an unlocked mission sector to continue
+        </p>
+      </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
-        <HudCard icon={'\u2726'} label="Age Unlocked" glow="pink" className="w-full">
-          <div className="font-pixel text-2xl sm:text-3xl text-neon-pink mb-1">
-            {age}
-          </div>
-          <div className="font-pixel text-[6px] text-soft/40 uppercase tracking-wider">
-            Years
+      {/* 3 Top HUD Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+        <HudCard title="AGE UNLOCKED">
+          <div className="flex items-center justify-center gap-3">
+            <span className="font-pixel text-2xl sm:text-3xl text-neon-sky">{age}</span>
+            <span className="font-pixel text-[8px] text-neon-pink uppercase">YEARS</span>
           </div>
         </HudCard>
 
-        <HudCard icon={'\u2764'} label="Days Together" glow="blue" className="w-full">
-          <div className="font-pixel text-2xl sm:text-3xl text-neon-sky mb-1">
-            {daysTogether.toLocaleString()}
-          </div>
-          <div className="font-pixel text-[6px] text-soft/40 uppercase tracking-wider">
-            Since {new Date(person.relationshipStart).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+        <HudCard title="DAYS TOGETHER">
+          <div className="flex items-center justify-center gap-3">
+            <span className="font-pixel text-2xl sm:text-3xl text-neon-sky">
+              {daysTogether}
+            </span>
+            <span className="font-pixel text-[8px] text-neon-pink uppercase">DAYS</span>
           </div>
         </HudCard>
 
-        <HudCard icon={<Sprite name="phone" kind="props" scale={1} />} label="Wishes Collected" glow="pink" className="w-full">
-          <div className="font-pixel text-2xl sm:text-3xl text-neon-pink mb-1">
-            {wishCount}
-          </div>
-          <div className="font-pixel text-[6px] text-soft/40 uppercase tracking-wider">
-            Messages
+        <HudCard title="WISHES COLLECTED">
+          <div className="flex items-center justify-center gap-3">
+            <Sprite name="phone" kind="props" scale={1.5} />
+            <span className="font-pixel text-2xl sm:text-3xl text-neon-sky">
+              {wishesCount}
+            </span>
           </div>
         </HudCard>
       </div>
 
-      {/* Birthday countdown */}
-      <div className="w-full">
-        <div className="font-pixel text-[8px] text-neon-sky/60 uppercase tracking-widest text-center mb-3">
-          {'\u25C6'} Countdown to Birthday {'\u25C6'}
+      {/* Live Birthday Countdown */}
+      <div
+        className="w-full bg-navy-900/80 backdrop-blur-sm border-2 border-neon-blue/40 p-4 sm:p-5 flex flex-col items-center gap-3"
+        style={{ borderRadius: '2px', boxShadow: '0 0 16px rgba(37, 99, 235, 0.15)' }}
+      >
+        <div className="font-pixel text-[8px] text-neon-sky uppercase tracking-widest">
+          {'\u25B6'} NEXT BIRTHDAY COUNTDOWN {'\u25C0'}
         </div>
-        {countdown.isToday ? (
-          <div
-            className="relative bg-navy-800/60 backdrop-blur-sm border-2 border-neon-pink/50 p-4 text-center"
-            style={{ borderRadius: '2px', boxShadow: '0 0 20px rgba(244, 114, 182, 0.3)' }}
-          >
-            <span className="absolute top-0 left-0 w-2.5 h-2.5 border-t-2 border-l-2 border-neon-pink pointer-events-none" />
-            <span className="absolute top-0 right-0 w-2.5 h-2.5 border-t-2 border-r-2 border-neon-pink pointer-events-none" />
-            <span className="absolute bottom-0 left-0 w-2.5 h-2.5 border-b-2 border-l-2 border-neon-pink pointer-events-none" />
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b-2 border-r-2 border-neon-pink pointer-events-none" />
-            <div className="font-pixel text-sm sm:text-base text-neon-pink uppercase tracking-widest animate-pulse">
-              {'\u2605'} TODAY IS THE DAY {'\u2605'}
-            </div>
-            <div className="font-pixel text-[7px] text-neon-pink/60 mt-2">
-              Happy Birthday, {person.name}!
-            </div>
+
+        {timeLeft.isToday ? (
+          <div className="py-2 text-center">
+            <h2 className="font-pixel text-sm sm:text-xl text-neon-pink animate-pulse">
+              {'\u2728'} TODAY IS THE DAY! HAPPY BIRTHDAY! {'\u2728'}
+            </h2>
           </div>
         ) : (
-          <div className="grid grid-cols-4 gap-2 w-full">
+          <div className="grid grid-cols-4 gap-2 sm:gap-4 w-full max-w-md">
             {[
-              { label: 'Days', value: countdown.days },
-              { label: 'Hours', value: countdown.hours },
-              { label: 'Mins', value: countdown.mins },
-              { label: 'Secs', value: countdown.secs },
+              { label: 'DAYS', val: timeLeft.days },
+              { label: 'HOURS', val: timeLeft.hours },
+              { label: 'MINS', val: timeLeft.minutes },
+              { label: 'SECS', val: timeLeft.seconds },
             ].map((chip) => (
               <div
                 key={chip.label}
-                className="relative bg-navy-800/60 backdrop-blur-sm border border-neon-blue/40 p-2 sm:p-3 text-center"
+                className="bg-navy-800/80 border border-neon-sky/30 p-2 sm:p-3 flex flex-col items-center justify-center"
                 style={{ borderRadius: '2px' }}
               >
-                <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-neon-sky pointer-events-none" />
-                <span className="absolute top-0 right-0 w-2 h-2 border-t border-r border-neon-sky pointer-events-none" />
-                <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-neon-sky pointer-events-none" />
-                <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-neon-sky pointer-events-none" />
-                <div className="font-pixel text-lg sm:text-xl text-neon-sky tabular-nums">
-                  {String(chip.value).padStart(2, '0')}
-                </div>
-                <div className="font-pixel text-[6px] text-soft/40 uppercase tracking-wider mt-1">
+                <span className="font-pixel text-base sm:text-xl text-neon-sky">
+                  {String(chip.val).padStart(2, '0')}
+                </span>
+                <span className="font-pixel text-[6px] sm:text-[7px] text-soft/50 mt-1">
                   {chip.label}
-                </div>
+                </span>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Level tiles */}
-      <div className="w-full">
-        <div className="font-pixel text-[8px] text-neon-sky/60 uppercase tracking-widest text-center mb-3">
-          {'\u25C6'} Mission Levels {'\u25C6'}
+      {/* Level Selector Grid */}
+      <div className="w-full space-y-4">
+        <div className="flex items-center justify-between border-b border-neon-blue/30 pb-2">
+          <div className="flex items-center gap-2">
+            <span className="font-pixel text-[10px] text-neon-pink uppercase tracking-widest">
+              MISSION LEVELS
+            </span>
+          </div>
+          {/* Achievements Hub Link with backpack prop */}
+          <Link
+            to="/awards"
+            className="flex items-center gap-2 px-3 py-1.5 border border-neon-pink/50 bg-navy-800/60 hover:bg-neon-pink/10 transition-all text-soft hover:text-neon-pink"
+            style={{ borderRadius: '2px' }}
+          >
+            <Sprite name="backpack" kind="props" scale={1.2} />
+            <span className="font-pixel text-[8px] uppercase tracking-wider">
+              Achievements
+            </span>
+          </Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full">
-          {LEVEL_TILES.map((tile) => {
-            const unlocked = isUnlocked(tile.id)
-            const done = !!completed[tile.id]
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+          {playableLevels.map((lvl) => {
+            const unlocked = isUnlocked(lvl.id)
+            const completed = isLevelCompleted(lvl.id)
+
+            if (!unlocked) {
+              return (
+                <div
+                  key={lvl.id}
+                  className="relative p-3.5 bg-navy-950/60 border border-soft/10 flex flex-col items-center justify-center gap-2 opacity-50 cursor-not-allowed select-none min-h-[110px]"
+                  style={{ borderRadius: '2px' }}
+                >
+                  <span className="font-pixel text-lg text-soft/30">{'\uD83D\uDD12'}</span>
+                  <div className="text-center">
+                    <div className="font-pixel text-[8px] text-soft/40 uppercase">
+                      {lvl.name}
+                    </div>
+                    <div className="font-pixel text-[6px] text-neon-pink/50 mt-1">
+                      {lvl.xpRequired} XP REQ
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
             return (
               <Link
-                key={tile.id}
-                to={unlocked ? tile.path : '#'}
-                onClick={(e) => {
-                  if (!unlocked) {
-                    e.preventDefault()
-                    sfx.click()
-                    say('think', 'This level is still locked. Complete the previous one first!', 'surprised')
-                    return
-                  }
-                  sfx.click()
-                }}
-                className={`relative bg-navy-800/60 backdrop-blur-sm border rounded-sm p-4 flex flex-col items-center gap-2 transition-all duration-200 ${
-                  !unlocked
-                    ? 'border-soft/20 opacity-50 cursor-not-allowed'
-                    : done
-                    ? tile.glow === 'pink'
-                      ? 'border-neon-pink/60 hover:scale-105 hover:shadow-[0_0_12px_rgba(244,114,182,0.3)]'
-                      : 'border-neon-blue/60 hover:scale-105 hover:shadow-[0_0_12px_rgba(37,99,235,0.3)]'
-                    : tile.glow === 'pink'
-                    ? 'border-neon-pink/40 hover:scale-105 hover:border-neon-pink hover:shadow-[0_0_12px_rgba(244,114,182,0.3)]'
-                    : 'border-neon-blue/40 hover:scale-105 hover:border-neon-blue hover:shadow-[0_0_12px_rgba(37,99,235,0.3)]'
-                }`}
+                key={lvl.id}
+                to={`/${lvl.id}`}
+                className="group relative p-3.5 bg-navy-800/60 hover:bg-navy-800/90 border border-neon-sky/40 hover:border-neon-sky flex flex-col items-center justify-center gap-2 transition-all hover:shadow-[0_0_12px_rgba(56,189,248,0.25)] min-h-[110px]"
+                style={{ borderRadius: '2px' }}
               >
-                <div className="flex items-center gap-2">
-                  <Sprite name="books" kind="props" scale={2} />
-                  {done && (
-                    <span className="font-pixel text-[8px] text-neon-sky">{'\u2713'}</span>
-                  )}
-                </div>
-                <span className={`font-pixel text-[8px] uppercase tracking-wider ${unlocked ? 'text-soft/70' : 'text-soft/30'}`}>
-                  {tile.label}
-                </span>
-                {!unlocked && (
-                  <span className="font-pixel text-[10px] text-soft/30">{'\u25A0'}</span>
+                {/* Completed badge */}
+                {completed && (
+                  <span className="absolute top-1.5 right-1.5 font-pixel text-[7px] text-neon-sky">
+                    {'\u2713'}
+                  </span>
                 )}
+
+                {/* Level books icon */}
+                <div className="group-hover:scale-110 transition-transform">
+                  <Sprite name="books" kind="props" scale={1.8} />
+                </div>
+
+                <div className="text-center">
+                  <div className="font-pixel text-[8px] text-soft group-hover:text-neon-sky uppercase transition-colors">
+                    {lvl.name}
+                  </div>
+                  <div className="font-pixel text-[6px] text-neon-sky/50 mt-1">
+                    {completed ? 'COMPLETED' : 'UNLOCKED'}
+                  </div>
+                </div>
               </Link>
             )
           })}
         </div>
       </div>
-
-      {/* Achievements link */}
-      <Link
-        to="/achievements"
-        onClick={() => sfx.click()}
-        className="relative bg-navy-800/60 backdrop-blur-sm border border-neon-blue/40 rounded-sm p-4 flex items-center gap-3 transition-all duration-200 hover:scale-105 hover:border-neon-blue hover:shadow-[0_0_12px_rgba(37,99,235,0.3)] w-full max-w-xs justify-center"
-      >
-        <Sprite name="backpack" kind="props" scale={2} />
-        <span className="font-pixel text-[8px] uppercase tracking-wider text-neon-sky/70">
-          Achievements
-        </span>
-      </Link>
     </div>
   )
 }

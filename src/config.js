@@ -2,7 +2,7 @@
 // Put each sprite as a transparent PNG in /public/media/character/
 // Example: stand: "/media/character/stand.png"
 export const character = {
-  name: "Riya",
+  name: "Pratyusha",
   poses: {
     stand: "/media/character/stand.png",
     wave: "/media/character/wave.png",
@@ -57,12 +57,12 @@ export const dialogue = {
 // ============ 1. BASIC INFO ============
 // Password is the date of birth typed as DDMMYYYY.
 export const person = {
-  name: "Riya",
-  dob: "2000-08-15",
+  name: "Pratyusha",
+  dob: "2006-10-06",
   password: "06102006",
   hint: "The day you were born",
-  from: "Your Name",
-  relationshipStart: "2019-03-10",
+  from: "Rono",
+  relationshipStart: "2024-08-11",
 }
 
 // ============ 2. MUSIC ============

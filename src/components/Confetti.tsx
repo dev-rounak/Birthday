@@ -1,108 +1,80 @@
-import { useRef, useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface ConfettiPiece {
   x: number
   y: number
   vx: number
   vy: number
-  rotation: number
-  rotationSpeed: number
-  color: string
   size: number
-  shape: 'square' | 'rect' | 'circle'
-  alpha: number
-  life: number
-  maxLife: number
+  color: string
+  rotation: number
+  rotSpeed: number
 }
 
-const COLORS = ['#38bdf8', '#f472b6', '#fbbf24', '#34d399', '#a78bfa', '#fb7185', '#f8fafc']
+const PALETTE = ['#38bdf8', '#f472b6', '#2563eb', '#fbcfe8', '#ffffff', '#fbbf24']
 
 interface ConfettiProps {
-  active: boolean
+  active?: boolean
 }
 
-export default function Confetti({ active }: ConfettiProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const piecesRef = useRef<ConfettiPiece[]>([])
-  const rafRef = useRef<number>(0)
+export default function Confetti({ active = true }: ConfettiProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
+    if (!active) return
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    let animId: number
     const resize = () => {
-      canvas.width = canvas.offsetWidth
-      canvas.height = canvas.offsetHeight
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
     }
     resize()
+    window.addEventListener('resize', resize)
 
-    const spawn = () => {
-      const count = 5
-      for (let i = 0; i < count; i++) {
-        piecesRef.current.push({
-          x: Math.random() * canvas.width,
-          y: -10,
-          vx: (Math.random() - 0.5) * 3,
-          vy: 2 + Math.random() * 3,
-          rotation: Math.random() * Math.PI * 2,
-          rotationSpeed: (Math.random() - 0.5) * 0.2,
-          color: COLORS[Math.floor(Math.random() * COLORS.length)],
-          size: 4 + Math.random() * 6,
-          shape: ['square', 'rect', 'circle'][Math.floor(Math.random() * 3)] as 'square' | 'rect' | 'circle',
-          alpha: 1,
-          life: 0,
-          maxLife: 200 + Math.random() * 100,
-        })
-      }
-    }
+    const pieces: ConfettiPiece[] = Array.from({ length: 70 }, () => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * -window.innerHeight,
+      vx: (Math.random() - 0.5) * 2,
+      vy: Math.random() * 2.5 + 2,
+      size: Math.floor(Math.random() * 4) + 4,
+      color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
+      rotation: Math.random() * Math.PI,
+      rotSpeed: (Math.random() - 0.5) * 0.1,
+    }))
 
-    const animate = () => {
+    const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      if (active && piecesRef.current.length < 150) {
-        spawn()
-      }
-
-      piecesRef.current = piecesRef.current.filter((p) => {
-        p.life++
+      for (const p of pieces) {
         p.x += p.vx
         p.y += p.vy
-        p.vy += 0.05
-        p.rotation += p.rotationSpeed
-        p.alpha = Math.max(0, 1 - p.life / p.maxLife)
-        if (p.alpha <= 0 || p.y > canvas.height + 20) return false
+        p.rotation += p.rotSpeed
+
+        if (p.y > canvas.height) {
+          p.y = -10
+          p.x = Math.random() * canvas.width
+        }
 
         ctx.save()
         ctx.translate(p.x, p.y)
         ctx.rotate(p.rotation)
         ctx.fillStyle = p.color
-        ctx.globalAlpha = p.alpha
-        if (p.shape === 'circle') {
-          ctx.beginPath()
-          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2)
-          ctx.fill()
-        } else if (p.shape === 'rect') {
-          ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2)
-        } else {
-          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size)
-        }
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size)
         ctx.restore()
-        ctx.globalAlpha = 1
-        return true
-      })
+      }
 
-      rafRef.current = requestAnimationFrame(animate)
+      animId = requestAnimationFrame(render)
     }
 
-    animate()
-    window.addEventListener('resize', resize)
+    render()
 
     return () => {
-      cancelAnimationFrame(rafRef.current)
       window.removeEventListener('resize', resize)
-      piecesRef.current = []
+      cancelAnimationFrame(animId)
     }
   }, [active])
 
@@ -111,7 +83,8 @@ export default function Confetti({ active }: ConfettiProps) {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 z-30 pointer-events-none"
+      className="fixed inset-0 w-screen h-screen pointer-events-none z-30"
+      style={{ imageRendering: 'pixelated' }}
     />
   )
 }
