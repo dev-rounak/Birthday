@@ -1,222 +1,270 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { person, dialogue } from '../config.js'
+import { person } from '../config.js'
 import { useBuddy } from '../context/BuddyContext'
 import { useMusic } from '../context/MusicContext'
 import { useXP } from '../context/XPContext'
 import { sfx } from '../utils/sfx'
+import Sprite from '../components/Sprite'
 
-const BOOT_LINES = [
-  '> Initializing birthday mission system...',
-  '> Loading companion AI...',
-  '> Scanning identity signature...',
-  '> Establishing secure connection...',
-  '> Access terminal ready.',
-]
+interface ChatMessage {
+  id: number
+  sender: 'buddy' | 'user'
+  text: string
+  face?: string
+}
 
 function normalizePassword(input: string): string {
   return input.replace(/[^0-9]/g, '')
 }
-
-type Phase = 'booting' | 'input' | 'denied' | 'granted'
 
 export default function AccessTerminal() {
   const navigate = useNavigate()
   const { say } = useBuddy()
   const { play } = useMusic()
   const { completeLevel } = useXP()
-  const [phase, setPhase] = useState<Phase>('booting')
-  const [bootIndex, setBootIndex] = useState(0)
-  const [typedBoot, setTypedBoot] = useState('')
-  const [password, setPassword] = useState('')
+
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [inputText, setInputText] = useState('')
+  const [isTyping, setIsTyping] = useState(true)
   const [failCount, setFailCount] = useState(0)
-  const [showHint, setShowHint] = useState(false)
+  const [isGranted, setIsGranted] = useState(false)
   const [shake, setShake] = useState(false)
+
+  const chatBottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const hasTriggeredDialogue = useRef(false)
 
-  // Boot sequence: type out each line
+  const scrollToBottom = () => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
   useEffect(() => {
-    if (phase !== 'booting') return
-    if (bootIndex >= BOOT_LINES.length) {
-      setPhase('input')
-      return
-    }
-    const line = BOOT_LINES[bootIndex]
-    if (typedBoot.length < line.length) {
-      const timer = setTimeout(() => {
-        setTypedBoot(line.slice(0, typedBoot.length + 1))
-      }, 25)
-      return () => clearTimeout(timer)
-    } else {
-      sfx.click()
-      const timer = setTimeout(() => {
-        setBootIndex((i) => i + 1)
-        setTypedBoot('')
-      }, 300)
-      return () => clearTimeout(timer)
-    }
-  }, [phase, bootIndex, typedBoot])
+    scrollToBottom()
+  }, [messages, isTyping])
 
-  // Show gate dialogue when input phase starts (only once)
   useEffect(() => {
-    if (phase === 'input' && !hasTriggeredDialogue.current) {
-      hasTriggeredDialogue.current = true
-      const gate = dialogue.gate
-      if (gate) {
-        say(gate.pose, gate.text, gate.face)
-      }
-      setTimeout(() => inputRef.current?.focus(), 100)
-    }
-  }, [phase, say])
+    const t1 = setTimeout(() => {
+      setMessages([
+        {
+          id: 1,
+          sender: 'buddy',
+          text: `Hey ${person?.name || 'there'}! 👋 Welcome to your classified Birthday Mission.`,
+          face: 'smile',
+        },
+      ])
+      sfx?.pop?.()
+      say('wave', `Hey ${person?.name || 'there'}! Ready for your birthday mission?`, 'smile')
+    }, 500)
 
-  const handleSubmit = (e: React.FormEvent) => {
+    const t2 = setTimeout(() => {
+      setIsTyping(false)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: 2,
+          sender: 'buddy',
+          text: 'To unlock mission clearance, I need your security passcode (Your DOB in DDMMYYYY format)!',
+          face: 'wink',
+        },
+      ])
+      sfx?.pop?.()
+      inputRef.current?.focus()
+    }, 1800)
+
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
+  }, [say])
+
+  const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault()
-    const normalized = normalizePassword(password)
+    if (!inputText.trim() || isGranted) return
 
-    if (normalized === person.password) {
-      // Success
-      setPhase('granted')
-      sfx.unlock()
-      setTimeout(() => sfx.success(), 300)
-      say('happy', 'Access granted! Welcome to your birthday mission!', 'smile')
-      setTimeout(() => {
-        say('celebrating', 'Lets go! Adventure time!', 'smile')
-      }, 1500)
-      play()
-      completeLevel('gate')
-      setTimeout(() => navigate('/hub'), 2500)
-    } else {
-      // Failure
-      setPhase('denied')
-      setShake(true)
-      setFailCount((c) => c + 1)
-      sfx.click()
-      say('angry', 'ACCESS DENIED! That is not the right code.', 'angry')
-      setTimeout(() => {
-        say('sad', 'Hmm... try again?', 'sad')
-        setShake(false)
-        setPhase('input')
-        setPassword('')
-        if (failCount + 1 >= 3) {
-          setShowHint(true)
-          say('think', `Hint: ${person.hint}`, 'smile')
-        }
-        setTimeout(() => inputRef.current?.focus(), 100)
-      }, 1500)
+    const entered = inputText.trim()
+    const userMsg: ChatMessage = {
+      id: Date.now(),
+      sender: 'user',
+      text: entered,
     }
+
+    setMessages((prev) => [...prev, userMsg])
+    setInputText('')
+    setIsTyping(true)
+    sfx?.click?.()
+
+    const normalized = normalizePassword(entered)
+    const targetPassword = String(person?.password || person?.dob || '06102006').replace(/[^0-9]/g, '')
+
+    setTimeout(() => {
+      setIsTyping(false)
+
+      if (normalized === targetPassword) {
+        setIsGranted(true)
+        sfx?.unlock?.()
+        setTimeout(() => sfx?.success?.(), 300)
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            sender: 'buddy',
+            text: `Identity verified! Access Granted! Happy Birthday, ${person?.name || ''}! 🎉🎂`,
+            face: 'smile',
+          },
+        ])
+
+        say('celebrating', 'Passcode accepted! Launching Mission Control!', 'smile')
+        play?.()
+        completeLevel('gate')
+
+        setTimeout(() => {
+          navigate('/hub')
+        }, 2200)
+      } else {
+        setShake(true)
+        setTimeout(() => setShake(false), 500)
+        sfx?.pop?.()
+        const nextFail = failCount + 1
+        setFailCount(nextFail)
+
+        let reply = 'Hmm, that passcode is not matching my database... Try again!'
+        if (nextFail >= 2 && person?.hint) {
+          reply = `Psst... here is a hint: "${person.hint}"!`
+        }
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            sender: 'buddy',
+            text: reply,
+            face: nextFail >= 2 ? 'blush' : 'sad',
+          },
+        ])
+
+        say('sad', 'Passcode mismatch! Try your birthday digits.', 'sad')
+        inputRef.current?.focus()
+      }
+    }, 850)
   }
 
   return (
-    <div className={`flex flex-col items-center gap-6 w-full max-w-lg mt-4 ${shake ? 'glitch-shake' : ''}`}>
-      {/* Terminal header */}
-      <div className="text-center">
-        <div className="font-pixel text-[8px] text-neon-pink uppercase tracking-widest mb-4">
-          {'\u25C0'} ACCESS TERMINAL {'\u25B6'}
-        </div>
-        <h1 className="font-pixel text-lg sm:text-2xl text-soft uppercase leading-tight mb-2">
-          Birthday
-        </h1>
-        <h1 className="font-pixel text-lg sm:text-2xl text-neon-sky uppercase leading-tight">
-          Mission
-        </h1>
-      </div>
-
-      {/* Terminal screen */}
+    <div className="w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 select-none overflow-hidden">
+      {/* Floating Retro Hologram Modal */}
       <div
-        className="w-full bg-navy-900/80 backdrop-blur-sm border-2 border-neon-blue/40 p-4 sm:p-6 min-h-[280px] flex flex-col"
-        style={{ borderRadius: '2px', boxShadow: '0 0 16px rgba(37, 99, 235, 0.2)' }}
+        className={`w-full max-w-lg bg-navy-950/95 backdrop-blur-md border-2 border-neon-sky/80 flex flex-col shadow-[0_0_35px_rgba(56,189,248,0.35)] relative ${shake ? 'animate-bounce' : ''
+          }`}
+        style={{
+          height: 'min(580px, 84vh)',
+          borderRadius: '3px',
+        }}
       >
-        {/* Corner brackets */}
-        <span className="relative w-full">
-          <span className="absolute top-0 left-0 w-2.5 h-2.5 border-t-2 border-l-2 border-neon-sky pointer-events-none" />
-          <span className="absolute top-0 right-0 w-2.5 h-2.5 border-t-2 border-r-2 border-neon-sky pointer-events-none" />
-        </span>
+        <span className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-neon-pink z-10 pointer-events-none" />
+        <span className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-neon-pink z-10 pointer-events-none" />
+        <span className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-neon-pink z-10 pointer-events-none" />
+        <span className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-neon-pink z-10 pointer-events-none" />
 
-        {/* Boot lines */}
-        <div className="flex-1 font-pixel text-[8px] text-neon-sky/70 leading-relaxed space-y-1 mb-4">
-          {BOOT_LINES.slice(0, bootIndex).map((line, i) => (
-            <div key={i} className="flex items-start gap-1">
-              <span className="text-neon-sky/50">{'\u25B6'}</span>
-              <span>{line}</span>
-              <span className="text-neon-sky">{'\u2713'}</span>
+        {/* Modal Top Bar */}
+        <div className="px-3 py-2 bg-navy-900 border-b border-neon-sky/30 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="font-pixel text-[8px] sm:text-[9px] text-neon-sky uppercase tracking-wider">
+              TERMINAL UPLINK // {person?.name || 'USER'}
+            </span>
+          </div>
+          <span className="font-pixel text-[6px] text-neon-pink uppercase tracking-widest">
+            SECURE-CH: 06-10
+          </span>
+        </div>
+
+        {/* Status Sub-bar */}
+        <div className="px-3 py-2 bg-navy-950/90 border-b border-neon-sky/20 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <Sprite name="stand" kind="poses" scale={1.2} />
+            <div>
+              <div className="font-pixel text-[7px] text-neon-pink uppercase">
+                Buddy AI
+              </div>
+              <div className="font-pixel text-[6px] text-green-400/80 uppercase">
+                {isGranted ? 'CLEARANCE ACCEPTED' : 'ONLINE • AWAITING DOB'}
+              </div>
             </div>
-          ))}
-          {phase === 'booting' && bootIndex < BOOT_LINES.length && (
-            <div className="flex items-start gap-1">
-              <span className="text-neon-sky/50">{'\u25B6'}</span>
-              <span>{typedBoot}</span>
-              <span className="cursor-blink text-neon-sky">{'\u258C'}</span>
+          </div>
+          <div className="font-pixel text-[6px] text-soft/40 uppercase text-right">
+            FORMAT: DDMMYYYY
+          </div>
+        </div>
+
+        {/* Scrollable Conversation Container */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 custom-scrollbar">
+          {messages.map((m) => {
+            const isBuddy = m.sender === 'buddy'
+
+            return (
+              <div
+                key={m.id}
+                className={`flex items-start gap-2 ${isBuddy ? 'justify-start' : 'justify-end'
+                  }`}
+              >
+                {isBuddy && (
+                  <div className="flex-shrink-0 mt-0.5">
+                    <Sprite name={m.face || 'smile'} kind="faces" scale={1.2} />
+                  </div>
+                )}
+
+                <div
+                  className={`max-w-[80%] px-3 py-2 font-body text-xs sm:text-sm leading-relaxed ${isBuddy
+                      ? 'bg-navy-900/90 border border-neon-sky/50 text-soft shadow-[0_0_10px_rgba(56,189,248,0.15)]'
+                      : 'bg-neon-pink/25 border border-neon-pink text-white shadow-[0_0_12px_rgba(244,114,182,0.25)]'
+                    }`}
+                  style={{ borderRadius: '2px' }}
+                >
+                  {m.text}
+                </div>
+              </div>
+            )
+          })}
+
+          {isTyping && (
+            <div className="flex items-center gap-1.5 text-neon-sky font-pixel text-[7px] pl-1 animate-pulse">
+              <span>Buddy is typing</span>
+              <span>...</span>
             </div>
           )}
+
+          <div ref={chatBottomRef} />
         </div>
 
-        {/* Password input */}
-        {phase === 'input' && (
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="font-pixel text-[8px] text-neon-pink/80 uppercase tracking-wider">
-              {'\u25B6'} Enter date of birth to proceed:
-            </div>
-            <div className="font-pixel text-[6px] text-soft/40">
-              Format: DDMMYYYY (separators OK)
-            </div>
-            <input
-              ref={inputRef}
-              type="text"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-navy-800/60 border-2 border-neon-blue/40 px-3 py-2.5 font-pixel text-sm text-neon-sky text-center tracking-[0.3em] outline-none focus:border-neon-sky focus:shadow-[0_0_12px_rgba(56,189,248,0.3)] transition-all"
-              style={{ borderRadius: '2px' }}
-              placeholder="--------"
-              autoComplete="off"
-              inputMode="numeric"
-            />
-            {showHint && (
-              <div className="font-pixel text-[7px] text-neon-pink/70 text-center animate-pulse">
-                HINT: {person.hint}
-              </div>
-            )}
-            <button
-              type="submit"
-              className="w-full font-pixel text-[10px] uppercase tracking-wider border-2 border-neon-pink text-neon-pink py-2.5 transition-all hover:bg-neon-pink/10 hover:shadow-[0_0_16px_rgba(244,114,182,0.5)] active:scale-95"
-              style={{ borderRadius: '2px' }}
-              onClick={sfx.click}
-            >
-              {'\u25B6'} Authenticate
-            </button>
-          </form>
-        )}
+        {/* Input Form Bar */}
+        <form
+          onSubmit={handleSendMessage}
+          className="p-2 sm:p-2.5 bg-navy-900 border-t border-neon-sky/30 flex items-center gap-2 flex-shrink-0"
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            disabled={isGranted}
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder={
+              isGranted
+                ? 'Mission clearance accepted! 🚀'
+                : 'Enter your birthdate (DDMMYYYY)...'
+            }
+            className="flex-1 bg-navy-950 border border-neon-sky/50 px-3 py-2 font-body text-xs sm:text-sm text-white placeholder:text-soft/40 outline-none focus:border-neon-pink transition-all"
+            style={{ borderRadius: '2px' }}
+          />
 
-        {/* Denied flash */}
-        {phase === 'denied' && (
-          <div className="flex flex-col items-center justify-center py-8">
-            <div className="font-pixel text-base sm:text-lg text-neon-pink uppercase tracking-widest animate-pulse">
-              {'\u26A0'} ACCESS DENIED {'\u26A0'}
-            </div>
-            <div className="font-pixel text-[7px] text-neon-pink/60 mt-2">
-              Invalid identity code
-            </div>
-          </div>
-        )}
-
-        {/* Granted flash */}
-        {phase === 'granted' && (
-          <div className="flex flex-col items-center justify-center py-8">
-            <div className="font-pixel text-base sm:text-lg text-neon-sky uppercase tracking-widest granted-flash">
-              {'\u2713'} ACCESS GRANTED {'\u2713'}
-            </div>
-            <div className="font-pixel text-[7px] text-neon-sky/60 mt-2">
-              Welcome, {person.name}
-            </div>
-          </div>
-        )}
-
-        {/* Fail counter */}
-        {phase === 'input' && failCount > 0 && (
-          <div className="font-pixel text-[6px] text-neon-pink/40 text-center mt-2">
-            Attempts: {failCount}
-          </div>
-        )}
+          <button
+            type="submit"
+            disabled={!inputText.trim() || isGranted}
+            className="font-pixel text-[7px] sm:text-[8px] uppercase px-3.5 py-2 border-2 border-neon-pink text-neon-pink hover:bg-neon-pink/20 transition-all disabled:opacity-40 active:scale-95 shadow-[0_0_10px_rgba(244,114,182,0.3)] flex-shrink-0"
+            style={{ borderRadius: '2px' }}
+          >
+            SEND ▶
+          </button>
+        </form>
       </div>
     </div>
   )

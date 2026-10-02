@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useBuddy } from '../context/BuddyContext'
 import { useXP } from '../context/XPContext'
 import { sfx } from '../utils/sfx'
@@ -80,6 +80,7 @@ const FRUIT_EMOJIS = [
 type ArcadePhase = 'intro' | 'trivia' | 'prep' | 'slice' | 'victory'
 
 export default function Arcade() {
+    const navigate = useNavigate()
     const { say } = useBuddy()
     const { completeLevel, isLevelCompleted } = useXP()
 
@@ -134,7 +135,7 @@ export default function Arcade() {
         const curr = QUESTIONS[qIndex] as QuestionText
         const val = typedAnswer.trim()
 
-        // Secretly save answer to localStorage for the Love Letter page
+        // Save answer to localStorage for the Love Letter page[cite: 16]
         try {
             localStorage.setItem(curr.storageKey, val)
             const secretBag = JSON.parse(localStorage.getItem('bm_secret_answers') || '{}')
@@ -145,7 +146,7 @@ export default function Arcade() {
         }
 
         sfx?.success?.()
-        setTriviaScore((s) => s + 1) // Always marks typed responses as correct
+        setTriviaScore((s) => s + 1)
         say('blush', "Aww, that's noted in my memory banks!", 'wink')
 
         setTimeout(() => advanceQuestion(), 1100)
@@ -174,7 +175,7 @@ export default function Arcade() {
         say('stand', 'Swipe or drag your cursor across the fruits to slice them! Watch out for bombs!', 'smile')
     }
 
-    // Fruit Spawner (Slower pace)
+    // Fruit Spawner
     useEffect(() => {
         if (phase !== 'slice') return
 
@@ -184,31 +185,31 @@ export default function Arcade() {
 
             const newFruit: SliceFruit = {
                 id: Date.now() + Math.random(),
-                x: Math.floor(Math.random() * 66) + 17, // 17% to 83% width
-                y: 104, // start slightly below viewport
-                vx: (Math.random() - 0.5) * 0.7, // gentle horizontal drift
-                vy: -(Math.random() * 1.1 + 2.1), // gentle vertical toss
+                x: Math.floor(Math.random() * 66) + 17,
+                y: 104,
+                vx: (Math.random() - 0.5) * 0.7,
+                vy: -(Math.random() * 1.1 + 2.1),
                 emoji: isBomb ? '💣' : randomFruit.emoji,
                 points: isBomb ? -25 : randomFruit.points,
                 sliced: false,
                 isBomb,
                 rotation: 0,
-                vRot: (Math.random() - 0.5) * 4, // smooth gentle rotation
+                vRot: (Math.random() - 0.5) * 4,
             }
 
             setFruits((prev) => [...prev, newFruit])
-        }, 950) // More comfortable interval
+        }, 950)
 
         return () => {
             if (spawnTimerRef.current) clearInterval(spawnTimerRef.current)
         }
     }, [phase])
 
-    // Physics Loop (Gentle gravity for slower flight)
+    // Physics Loop
     useEffect(() => {
         if (phase !== 'slice') return
 
-        const gravity = 0.04 // Halved gravity for floating floaty arc
+        const gravity = 0.04
         const loop = () => {
             setFruits((prev) =>
                 prev
@@ -230,7 +231,6 @@ export default function Arcade() {
         }
     }, [phase])
 
-    // Slice check on coordinate
     const checkSliceAt = useCallback(
         (clientX: number, clientY: number) => {
             const rect = gameAreaRef.current?.getBoundingClientRect()
@@ -239,17 +239,14 @@ export default function Arcade() {
             const pctX = ((clientX - rect.left) / rect.width) * 100
             const pctY = ((clientY - rect.top) / rect.height) * 100
 
-            // Add to blade trail
             setBladeTrail((trail) => [...trail.slice(-8), { x: pctX, y: pctY }])
 
             setFruits((prev) =>
                 prev.map((f) => {
                     if (f.sliced) return f
 
-                    // Distance check
                     const dist = Math.hypot(f.x - pctX, f.y - pctY)
                     if (dist < 10) {
-                        // Sliced!
                         if (f.isBomb) {
                             sfx?.pop?.()
                             setGameScore((s) => Math.max(0, s + f.points))
@@ -266,7 +263,6 @@ export default function Arcade() {
         []
     )
 
-    // Mouse & Touch Slice Handlers
     const handlePointerDown = (e: React.PointerEvent) => {
         isPointerDownRef.current = true
         checkSliceAt(e.clientX, e.clientY)
@@ -291,7 +287,6 @@ export default function Arcade() {
         say('celebrating', 'Masterful slicing! Arcade mission cleared!', 'smile')
     }, [isLevelCompleted, completeLevel, say])
 
-    // Countdown timer
     useEffect(() => {
         if (phase !== 'slice') return
 
@@ -316,7 +311,7 @@ export default function Arcade() {
             {/* Header */}
             <div className="text-center space-y-2 mb-4">
                 <div className="font-pixel text-[8px] sm:text-[9px] text-neon-pink uppercase tracking-widest">
-                    {'◀'} SECTOR: ARCADE ARENA {'▶'}
+                    {'◀'} SECTOR 05: ARCADE ARENA {'▶'}
                 </div>
                 <h1 className="font-pixel text-lg sm:text-2xl text-soft uppercase tracking-wider">
                     Trivia & Fruit Slicer
@@ -326,7 +321,7 @@ export default function Arcade() {
                 </p>
             </div>
 
-            {/* ================= PHASE 1: INTRO ================= */}
+            {/* Phase 1: Intro */}
             {phase === 'intro' && (
                 <div
                     className="w-full bg-navy-900/80 border-2 border-neon-blue/50 p-6 flex flex-col items-center text-center gap-5 mt-4"
@@ -353,7 +348,7 @@ export default function Arcade() {
                 </div>
             )}
 
-            {/* ================= PHASE 2: QUESTIONS ================= */}
+            {/* Phase 2: Questions */}
             {phase === 'trivia' && (
                 <div
                     className="w-full bg-navy-900/90 border-2 border-neon-sky p-5 sm:p-6 flex flex-col gap-4 mt-2"
@@ -372,7 +367,6 @@ export default function Arcade() {
                         {currQ.question}
                     </h3>
 
-                    {/* Multiple Choice Format (Q1 - Q3) */}
                     {currQ.type === 'choice' && (
                         <div className="grid grid-cols-1 gap-2.5">
                             {currQ.options.map((opt, i) => {
@@ -404,7 +398,6 @@ export default function Arcade() {
                         </div>
                     )}
 
-                    {/* Open-Ended Type Input Format (Q4 & Q5) */}
                     {currQ.type === 'text' && (
                         <form onSubmit={handleTextSubmit} className="space-y-4">
                             <input
@@ -431,7 +424,7 @@ export default function Arcade() {
                 </div>
             )}
 
-            {/* ================= PHASE 3: PREP SCREEN ================= */}
+            {/* Phase 3: Prep Screen */}
             {phase === 'prep' && (
                 <div
                     className="w-full bg-navy-900/90 border-2 border-neon-pink p-6 flex flex-col items-center text-center gap-4 mt-2"
@@ -455,16 +448,14 @@ export default function Arcade() {
                 </div>
             )}
 
-            {/* ================= PHASE 4: FRUIT SLICE ARENA ================= */}
+            {/* Phase 4: Fruit Slice Arena */}
             {phase === 'slice' && (
                 <div className="w-full flex flex-col items-center gap-3">
-                    {/* HUD Bar */}
                     <div className="w-full flex justify-between items-center bg-navy-900 border border-neon-sky/40 px-4 py-2 text-[8px] font-pixel">
                         <span className="text-neon-pink">SCORE: {gameScore}</span>
                         <span className="text-neon-sky animate-pulse">TIME LEFT: {timeLeft}s</span>
                     </div>
 
-                    {/* Slicing Arena Box */}
                     <div
                         ref={gameAreaRef}
                         onPointerDown={handlePointerDown}
@@ -474,7 +465,6 @@ export default function Arcade() {
                         className="relative w-full h-[360px] bg-navy-950 border-2 border-neon-blue/60 overflow-hidden shadow-inner cursor-crosshair touch-none select-none"
                         style={{ borderRadius: '2px' }}
                     >
-                        {/* Blade Swipe Trail */}
                         {bladeTrail.map((p, i) => (
                             <div
                                 key={i}
@@ -488,7 +478,6 @@ export default function Arcade() {
                             />
                         ))}
 
-                        {/* Flying Fruits */}
                         {fruits.map((f) => (
                             <div
                                 key={f.id}
@@ -514,7 +503,7 @@ export default function Arcade() {
                 </div>
             )}
 
-            {/* ================= PHASE 5: VICTORY SCREEN ================= */}
+            {/* Phase 5: Victory Screen With Sequential Navigation to Letter */}
             {phase === 'victory' && (
                 <div
                     className="w-full bg-navy-900/90 border-2 border-neon-sky p-6 flex flex-col items-center text-center gap-4 mt-2"
@@ -528,7 +517,8 @@ export default function Arcade() {
                     <div className="font-pixel text-[9px] text-neon-sky">
                         FINAL SCORE: {gameScore} PTS (+75 XP EARNED)
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-3 mt-3 w-full max-w-xs">
+
+                    <div className="flex flex-col sm:flex-row gap-3 mt-3 w-full max-w-md">
                         <button
                             onClick={() => {
                                 setPhase('intro')
@@ -540,28 +530,37 @@ export default function Arcade() {
                             className="w-full font-pixel text-[8px] uppercase py-2.5 border border-soft/50 text-soft hover:bg-white/10"
                             style={{ borderRadius: '2px' }}
                         >
-                            Play Again
+                            Replay Game
                         </button>
-                        <Link
-                            to="/hub"
-                            className="w-full text-center font-pixel text-[8px] uppercase py-2.5 border-2 border-neon-sky text-neon-sky bg-neon-sky/10 hover:bg-neon-sky/20 shadow-[0_0_12px_rgba(56,189,248,0.4)]"
+
+                        {/* Direct Advance Button to Love Letter */}
+                        <button
+                            onClick={() => {
+                                if (!isLevelCompleted('arcade')) {
+                                    completeLevel('arcade', 75)
+                                }
+                                sfx?.success?.()
+                                navigate('/letter')
+                            }}
+                            className="w-full font-pixel text-[8px] sm:text-[9px] uppercase py-2.5 border-2 border-neon-pink text-neon-pink bg-neon-pink/10 hover:bg-neon-pink/25 shadow-[0_0_14px_rgba(244,114,182,0.4)] active:scale-95 flex items-center justify-center gap-1.5"
                             style={{ borderRadius: '2px' }}
                         >
-                            Return to Hub ▶
-                        </Link>
+                            <span>Next Sector: Love Letter</span>
+                            <span>▶</span>
+                        </button>
                     </div>
                 </div>
             )}
 
-            {/* Hub link */}
+            {/* Back Link to Reasons */}
             {phase !== 'victory' && (
                 <div className="mt-8">
                     <Link
-                        to="/hub"
+                        to="/reasons"
                         className="font-pixel text-[8px] uppercase px-4 py-2 border border-neon-sky/40 text-soft/70 hover:text-neon-sky hover:border-neon-sky transition-all"
                         style={{ borderRadius: '2px' }}
                     >
-                        {'◀'} Back to Mission Control
+                        {'◀'} Back to Reasons
                     </Link>
                 </div>
             )}

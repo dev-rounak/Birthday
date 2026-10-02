@@ -3,21 +3,22 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 export interface LevelConfig {
   id: string
   name: string
-  xpRequired: number
   icon?: string
-  description?: string
 }
 
-export const LEVELS: LevelConfig[] = [
-  { id: 'gate', name: 'Access Terminal', xpRequired: 50, icon: 'terminal' },
-  { id: 'cake', name: 'Birthday Cake', xpRequired: 100, icon: 'cake' },
-  { id: 'gallery', name: 'Hall of Fame', xpRequired: 150, icon: 'photo' },
-  { id: 'reasons', name: 'Reasons Why', xpRequired: 200, icon: 'heart' },
-  { id: 'arcade', name: 'Arcade Arena', xpRequired: 250, icon: 'game' },
-  { id: 'wishes', name: 'Wishes Wall', xpRequired: 350, icon: 'star' },
-  { id: 'letter', name: 'Love Letter', xpRequired: 400, icon: 'mail' },
-  { id: 'secret', name: 'Secret Chamber', xpRequired: 500, icon: 'key' },
+// 1. Exact sequential order from start to finish
+export const LEVEL_ORDER = [
+  'gate',    // 0: Password Terminal (Home)
+  'hub',     // 1: Mission Control Hub
+  'cake',    // 2: Blow out candles & cut cake
+  'gallery', // 3: Memory Vault
+  'reasons', // 4: Reasons envelopes
+  'arcade',  // 5: Arcade mini game
+  'letter',  // 6: Heartfelt letter
+  'awards',  // 7: Final certificate & awards
 ]
+
+export const LEVELS = LEVEL_ORDER.map((id) => ({ id, name: id.toUpperCase() }))
 
 interface XPContextValue {
   xp: number
@@ -27,6 +28,7 @@ interface XPContextValue {
   completeLevel: (levelId: string, xpReward?: number) => void
   isLevelCompleted: (levelId: string) => boolean
   isUnlocked: (levelId: string) => boolean
+  resetProgress: () => void
 }
 
 const XPContext = createContext<XPContextValue | null>(null)
@@ -38,10 +40,15 @@ export function XPProvider({ children }: { children: ReactNode }) {
   })
 
   const [completedLevels, setCompletedLevels] = useState<string[]>(() => {
-    const saved = localStorage.getItem('bm_completed_levels')
-    return saved ? JSON.parse(saved) : []
+    try {
+      const saved = localStorage.getItem('bm_completed_levels')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
   })
 
+  // Sync to localStorage
   useEffect(() => {
     localStorage.setItem('bm_xp', xp.toString())
   }, [xp])
@@ -64,22 +71,41 @@ export function XPProvider({ children }: { children: ReactNode }) {
     setXp((prev) => prev + xpReward)
   }, [])
 
+  // Check if a level is marked completed
   const isLevelCompleted = useCallback(
     (levelId: string) => completedLevels.includes(levelId),
     [completedLevels]
   )
 
-  // Returns true if the level is completed OR the user has enough XP for it
+  // STRICT SEQUENTIAL CHECK:
+  // A level is ONLY unlocked if EVERY preceding level in LEVEL_ORDER has been completed.
   const isUnlocked = useCallback(
     (levelId: string) => {
-      if (levelId === 'gate') return true
-      if (completedLevels.includes(levelId)) return true
-      const target = LEVELS.find((l) => l.id === levelId)
-      if (!target) return true
-      return xp >= target.xpRequired
+      if (levelId === 'gate' || levelId === 'home') return true
+
+      const targetIndex = LEVEL_ORDER.indexOf(levelId)
+      if (targetIndex <= 0) return true
+
+      // Verify that every single prior level before this one is completed
+      for (let i = 0; i < targetIndex; i++) {
+        const priorId = LEVEL_ORDER[i]
+        if (!completedLevels.includes(priorId)) {
+          return false
+        }
+      }
+
+      return true
     },
-    [completedLevels, xp]
+    [completedLevels]
   )
+
+  // Reset function to clear all progress and start fresh from Home
+  const resetProgress = useCallback(() => {
+    localStorage.removeItem('bm_xp')
+    localStorage.removeItem('bm_completed_levels')
+    setXp(0)
+    setCompletedLevels([])
+  }, [])
 
   return (
     <XPContext.Provider
@@ -91,6 +117,7 @@ export function XPProvider({ children }: { children: ReactNode }) {
         completeLevel,
         isLevelCompleted,
         isUnlocked,
+        resetProgress,
       }}
     >
       {children}

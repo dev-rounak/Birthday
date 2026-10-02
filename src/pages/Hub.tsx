@@ -15,7 +15,6 @@ interface TimeRemaining {
 }
 
 function parseDate(dateStr: string): Date {
-  // Supports DDMMYYYY format as well as standard YYYY-MM-DD / ISO formats
   if (/^\d{8}$/.test(dateStr)) {
     const day = parseInt(dateStr.slice(0, 2), 10)
     const month = parseInt(dateStr.slice(2, 4), 10) - 1
@@ -47,7 +46,6 @@ function calculateDaysTogether(startDateStr: string): number {
 function calculateNextBirthday(dobStr: string): TimeRemaining {
   const birthDate = parseDate(dobStr)
   const now = new Date()
-
   const currentYear = now.getFullYear()
   let nextBday = new Date(currentYear, birthDate.getMonth(), birthDate.getDate())
 
@@ -70,25 +68,25 @@ function calculateNextBirthday(dobStr: string): TimeRemaining {
 export default function Hub() {
   const navigate = useNavigate()
   const { say } = useBuddy()
-  const { isUnlocked, isLevelCompleted } = useXP()
+  const { isUnlocked, isLevelCompleted, completeLevel } = useXP()
   const [loading, setLoading] = useState(true)
   const [wishesCount, setWishesCount] = useState(0)
   const hasTriggeredGreeting = useRef(false)
 
-  // Countdown timer state
   const [timeLeft, setTimeLeft] = useState<TimeRemaining>(() =>
     calculateNextBirthday(person.dob || person.password)
   )
 
-  // Protected route check: verify gate completion
   useEffect(() => {
-    const isGateUnlocked = isUnlocked('gate') || isLevelCompleted('gate')
-    if (!isGateUnlocked) {
+    if (!isUnlocked('hub')) {
       navigate('/', { replace: true })
       return
     }
 
-    // Load total wishes (stored wishes + preset wishes)
+    if (!isLevelCompleted('hub')) {
+      completeLevel('hub', 25)
+    }
+
     try {
       const stored = localStorage.getItem('wishes')
       const localWishes = stored ? JSON.parse(stored) : []
@@ -99,9 +97,8 @@ export default function Hub() {
     }
 
     setLoading(false)
-  }, [navigate, isUnlocked, isLevelCompleted])
+  }, [navigate, isUnlocked, isLevelCompleted, completeLevel])
 
-  // Buddy greeting: trigger once on load
   useEffect(() => {
     if (!loading && !hasTriggeredGreeting.current) {
       hasTriggeredGreeting.current = true
@@ -109,12 +106,11 @@ export default function Hub() {
       if (hubDialogue) {
         say('wave', hubDialogue.text, hubDialogue.face || 'smile')
       } else {
-        say('wave', 'Welcome to Mission Control! Choose your path.', 'smile')
+        say('wave', 'Welcome to Mission Control! Choose your next path.', 'smile')
       }
     }
   }, [loading, say])
 
-  // Live countdown ticker
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(calculateNextBirthday(person.dob || person.password))
@@ -128,7 +124,6 @@ export default function Hub() {
     []
   )
 
-  // Loading spinner with bubbletea prop
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -142,17 +137,16 @@ export default function Hub() {
     )
   }
 
-  // Filter out 'gate' from interactive level map
-  const playableLevels = LEVELS.filter((lvl) => lvl.id !== 'gate')
+  const playableLevels = LEVELS.filter((lvl) => lvl.id !== 'gate' && lvl.id !== 'hub')
 
   return (
-    <div className="flex flex-col items-center gap-8 w-full max-w-4xl px-2 sm:px-4 py-4">
-      {/* Title & HUD Header */}
-      <div className="text-center space-y-2">
-        <div className="font-pixel text-[8px] sm:text-[10px] text-neon-pink uppercase tracking-widest">
-          {'\u25C0'} SECTOR 01: HUB {'\u25B6'}
+    <div className="flex flex-col items-center gap-6 sm:gap-8 w-full max-w-4xl px-2 sm:px-4 py-2 pb-24">
+      {/* Title Header */}
+      <div className="text-center space-y-1 sm:space-y-2">
+        <div className="font-pixel text-[8px] sm:text-[9px] text-neon-pink uppercase tracking-widest">
+          {'◀'} SECTOR 01: HUB {'▶'}
         </div>
-        <h1 className="font-pixel text-xl sm:text-3xl text-soft uppercase tracking-wider">
+        <h1 className="font-pixel text-xl sm:text-2xl text-soft uppercase tracking-wider">
           Mission Control
         </h1>
         <p className="font-body text-xs sm:text-sm text-soft/60">
@@ -161,7 +155,7 @@ export default function Hub() {
       </div>
 
       {/* 3 Top HUD Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 w-full">
         <HudCard title="AGE UNLOCKED">
           <div className="flex items-center justify-center gap-3">
             <span className="font-pixel text-2xl sm:text-3xl text-neon-sky">{age}</span>
@@ -180,7 +174,7 @@ export default function Hub() {
 
         <HudCard title="WISHES COLLECTED">
           <div className="flex items-center justify-center gap-3">
-            <Sprite name="phone" kind="props" scale={1.5} />
+            <Sprite name="phone" kind="props" scale={1.4} />
             <span className="font-pixel text-2xl sm:text-3xl text-neon-sky">
               {wishesCount}
             </span>
@@ -190,17 +184,17 @@ export default function Hub() {
 
       {/* Live Birthday Countdown */}
       <div
-        className="w-full bg-navy-900/80 backdrop-blur-sm border-2 border-neon-blue/40 p-4 sm:p-5 flex flex-col items-center gap-3"
-        style={{ borderRadius: '2px', boxShadow: '0 0 16px rgba(37, 99, 235, 0.15)' }}
+        className="w-full bg-navy-900/80 backdrop-blur-sm border-2 border-neon-blue/40 p-4 sm:p-5 flex flex-col items-center gap-3 shadow-[0_0_16px_rgba(37,99,235,0.15)]"
+        style={{ borderRadius: '2px' }}
       >
         <div className="font-pixel text-[8px] text-neon-sky uppercase tracking-widest">
-          {'\u25B6'} NEXT BIRTHDAY COUNTDOWN {'\u25C0'}
+          {'▶'} NEXT BIRTHDAY COUNTDOWN {'◀'}
         </div>
 
         {timeLeft.isToday ? (
           <div className="py-2 text-center">
-            <h2 className="font-pixel text-sm sm:text-xl text-neon-pink animate-pulse">
-              {'\u2728'} TODAY IS THE DAY! HAPPY BIRTHDAY! {'\u2728'}
+            <h2 className="font-pixel text-sm sm:text-lg text-neon-pink animate-pulse">
+              ✨ TODAY IS THE DAY! HAPPY BIRTHDAY! ✨
             </h2>
           </div>
         ) : (
@@ -228,22 +222,19 @@ export default function Hub() {
         )}
       </div>
 
-      {/* Level Selector Grid */}
+      {/* Mission Level Tiles */}
       <div className="w-full space-y-4">
         <div className="flex items-center justify-between border-b border-neon-blue/30 pb-2">
-          <div className="flex items-center gap-2">
-            <span className="font-pixel text-[10px] text-neon-pink uppercase tracking-widest">
-              MISSION LEVELS
-            </span>
-          </div>
-          {/* Achievements Hub Link with backpack prop */}
+          <span className="font-pixel text-[9px] text-neon-pink uppercase tracking-widest">
+            MISSION LEVELS
+          </span>
           <Link
             to="/awards"
-            className="flex items-center gap-2 px-3 py-1.5 border border-neon-pink/50 bg-navy-800/60 hover:bg-neon-pink/10 transition-all text-soft hover:text-neon-pink"
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-neon-pink/50 bg-navy-800/60 hover:bg-neon-pink/10 transition-all text-soft hover:text-neon-pink"
             style={{ borderRadius: '2px' }}
           >
             <Sprite name="backpack" kind="props" scale={1.2} />
-            <span className="font-pixel text-[8px] uppercase tracking-wider">
+            <span className="font-pixel text-[7px] sm:text-[8px] uppercase tracking-wider">
               Achievements
             </span>
           </Link>
@@ -261,13 +252,13 @@ export default function Hub() {
                   className="relative p-3.5 bg-navy-950/60 border border-soft/10 flex flex-col items-center justify-center gap-2 opacity-50 cursor-not-allowed select-none min-h-[110px]"
                   style={{ borderRadius: '2px' }}
                 >
-                  <span className="font-pixel text-lg text-soft/30">{'\uD83D\uDD12'}</span>
+                  <span className="font-pixel text-base text-soft/30">🔒</span>
                   <div className="text-center">
                     <div className="font-pixel text-[8px] text-soft/40 uppercase">
                       {lvl.name}
                     </div>
                     <div className="font-pixel text-[6px] text-neon-pink/50 mt-1">
-                      {lvl.xpRequired} XP REQ
+                      LOCKED
                     </div>
                   </div>
                 </div>
@@ -281,18 +272,14 @@ export default function Hub() {
                 className="group relative p-3.5 bg-navy-800/60 hover:bg-navy-800/90 border border-neon-sky/40 hover:border-neon-sky flex flex-col items-center justify-center gap-2 transition-all hover:shadow-[0_0_12px_rgba(56,189,248,0.25)] min-h-[110px]"
                 style={{ borderRadius: '2px' }}
               >
-                {/* Completed badge */}
                 {completed && (
                   <span className="absolute top-1.5 right-1.5 font-pixel text-[7px] text-neon-sky">
-                    {'\u2713'}
+                    ✓
                   </span>
                 )}
-
-                {/* Level books icon */}
                 <div className="group-hover:scale-110 transition-transform">
-                  <Sprite name="books" kind="props" scale={1.8} />
+                  <Sprite name="books" kind="props" scale={1.7} />
                 </div>
-
                 <div className="text-center">
                   <div className="font-pixel text-[8px] text-soft group-hover:text-neon-sky uppercase transition-colors">
                     {lvl.name}
