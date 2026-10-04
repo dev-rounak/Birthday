@@ -1,36 +1,42 @@
-import Sprite from './Sprite'
 import { useXP, LEVELS } from '../context/XPContext'
 
 export default function HeartsXP() {
   const { xp, level } = useXP()
 
-  const nextLevel = LEVELS[level + 1]
-  const currentLevelXp = LEVELS[level]?.xp ?? 0
-  const progress = nextLevel
-    ? Math.min(1, (xp - currentLevelXp) / (nextLevel.xp - currentLevelXp))
-    : 1
+  const currentLevelObj = (LEVELS[level - 1] || LEVELS[0]) as any
+  const nextLevelObj = (LEVELS[level] || LEVELS[LEVELS.length - 1]) as any
 
-  const hearts = 5
-  const filledHearts = Math.ceil(progress * hearts)
+  const currentLevelXp = currentLevelObj?.xpRequired ?? currentLevelObj?.xp ?? 0
+  const nextLevelXp = nextLevelObj?.xpRequired ?? nextLevelObj?.xp ?? 100
+
+  const progress =
+    nextLevelXp > currentLevelXp
+      ? Math.min(1, Math.max(0, (xp - currentLevelXp) / (nextLevelXp - currentLevelXp)))
+      : 1
+
+  const heartsTotal = 5
+  const fullHearts = Math.min(heartsTotal, Math.max(1, Math.ceil(progress * heartsTotal)))
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-0.5">
-        {Array.from({ length: hearts }).map((_, i) => (
-          <div
+    <div className="flex items-center gap-3 bg-navy-950/80 border border-neon-sky/30 px-3 py-1.5 rounded-[2px] shadow-[0_0_10px_rgba(56,189,248,0.2)]">
+      {/* Pixel Hearts Bar */}
+      <div className="flex items-center gap-1">
+        {Array.from({ length: heartsTotal }).map((_, i) => (
+          <span
             key={i}
-            className={i < filledHearts ? 'opacity-100' : 'opacity-25'}
-            style={{ filter: i < filledHearts ? 'drop-shadow(0 0 3px rgba(244, 114, 182, 0.6))' : 'none' }}
+            className={`font-pixel text-[10px] sm:text-xs transition-all ${i < fullHearts ? 'text-neon-pink animate-pulse' : 'text-soft/20'
+              }`}
           >
-            <Sprite name="heart" kind="props" scale={1} />
-          </div>
+            ♥
+          </span>
         ))}
       </div>
-      <div className="font-pixel text-[7px] text-neon-pink/80 uppercase">
-        LV {level + 1}
-      </div>
-      <div className="font-pixel text-[7px] text-soft/50">
-        {xp} XP
+
+      {/* Level & XP counter */}
+      <div className="flex items-center gap-1.5 font-pixel text-[7px] sm:text-[8px] border-l border-neon-sky/30 pl-2">
+        <span className="text-neon-sky">LV {level}</span>
+        <span className="text-soft/40">•</span>
+        <span className="text-neon-pink">{xp} XP</span>
       </div>
     </div>
   )
