@@ -96,9 +96,12 @@ export const gallery = [
 
 // ============ 5. VIDEOS ============
 export const videos = [
-  { title: "Birthday message", type: "file", src: "/media/videos/msg.mp4", poster: "/media/videos/msg.jpg" },
-  { title: "Our trip", type: "youtube", src: "https://www.youtube.com/watch?v=XXXXXXXXXXX" },
-  { title: "Surprise moment", type: "file", src: "/media/videos/surprise.mp4", poster: "/media/videos/surprise.jpg" },
+  {
+    title: 'You',
+    caption: 'Our Special Video',
+    src: '/assets/gallery/video.mp4',
+    type: 'video',
+  },
 ]
 
 // ============ 6. REASONS ============

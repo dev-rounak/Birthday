@@ -151,13 +151,13 @@ export default function AccessTerminal() {
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 select-none overflow-hidden">
-      {/* Floating Retro Hologram Modal */}
+      {/* Floating Modal Frame */}
       <div
-        className={`w-full max-w-lg bg-navy-950/95 backdrop-blur-md border-2 border-neon-sky/80 flex flex-col shadow-[0_0_35px_rgba(56,189,248,0.35)] relative ${shake ? 'animate-bounce' : ''
+        className={`w-full max-w-lg bg-navy-950 border-2 border-neon-sky/80 flex flex-col shadow-[0_0_35px_rgba(56,189,248,0.35)] relative ${shake ? 'animate-bounce' : ''
           }`}
         style={{
           height: 'min(580px, 84vh)',
-          borderRadius: '3px',
+          borderRadius: '4px',
         }}
       >
         <span className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-neon-pink z-10 pointer-events-none" />
@@ -178,7 +178,7 @@ export default function AccessTerminal() {
           </span>
         </div>
 
-        {/* Status Sub-bar */}
+        {/* Sub-bar */}
         <div className="px-3 py-2 bg-navy-950/90 border-b border-neon-sky/20 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <Sprite name="stand" kind="poses" scale={1.2} />
@@ -191,12 +191,12 @@ export default function AccessTerminal() {
               </div>
             </div>
           </div>
-          <div className="font-pixel text-[6px] text-soft/40 uppercase text-right">
+          <div className="font-pixel text-[6px] text-soft/60 uppercase text-right">
             FORMAT: DDMMYYYY
           </div>
         </div>
 
-        {/* Scrollable Conversation Container */}
+        {/* Chat History Container */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 custom-scrollbar">
           {messages.map((m) => {
             const isBuddy = m.sender === 'buddy'
@@ -215,7 +215,7 @@ export default function AccessTerminal() {
 
                 <div
                   className={`max-w-[80%] px-3 py-2 font-body text-xs sm:text-sm leading-relaxed ${isBuddy
-                      ? 'bg-navy-900/90 border border-neon-sky/50 text-soft shadow-[0_0_10px_rgba(56,189,248,0.15)]'
+                      ? 'bg-navy-900 border border-neon-sky/50 text-soft shadow-[0_0_10px_rgba(56,189,248,0.15)]'
                       : 'bg-neon-pink/25 border border-neon-pink text-white shadow-[0_0_12px_rgba(244,114,182,0.25)]'
                     }`}
                   style={{ borderRadius: '2px' }}
@@ -236,7 +236,7 @@ export default function AccessTerminal() {
           <div ref={chatBottomRef} />
         </div>
 
-        {/* Input Form Bar */}
+        {/* Input Bar Form */}
         <form
           onSubmit={handleSendMessage}
           className="p-2 sm:p-2.5 bg-navy-900 border-t border-neon-sky/30 flex items-center gap-2 flex-shrink-0"
@@ -250,10 +250,14 @@ export default function AccessTerminal() {
             placeholder={
               isGranted
                 ? 'Mission clearance accepted! 🚀'
-                : 'Enter your birthdate (DDMMYYYY)...'
+                : 'Enter birthdate (DDMMYYYY)...'
             }
-            className="flex-1 bg-navy-950 border border-neon-sky/50 px-3 py-2 font-body text-xs sm:text-sm text-white placeholder:text-soft/40 outline-none focus:border-neon-pink transition-all"
-            style={{ borderRadius: '2px' }}
+            className="flex-1 !bg-navy-950 !text-white border-2 border-neon-sky/60 px-3 py-2 font-body text-xs sm:text-sm placeholder:text-soft/40 outline-none focus:border-neon-pink focus:shadow-[0_0_12px_rgba(244,114,182,0.35)] transition-all caret-neon-pink"
+            style={{
+              backgroundColor: '#050a18',
+              color: '#ffffff',
+              borderRadius: '2px',
+            }}
           />
 
           <button
