@@ -20,7 +20,7 @@ Tui amar chokhe jotota strong, seta hoyto tui nijeo sobsomoy bujhte parish na. J
 
 Tui strong mane ei na je tui kokhono kandbi na, kokhono koshto pabi na, ba sobsomoy sobkichu handle korte parbi. Amar kache strong howa mane holo — koshto pawar poreo nijer moddher bhalo manush-ta ke hariye na fela. Aar tui thik etai koris. 🫶
 
-Tor moddhe ekta khub shundor softness ache. Tui manushder niye care koris, choto choto jinish notice koris, jar jonno tor bhalobasha ache tar jonno nijer moto kore chesta koris. Hoyto sobsomoy tui seta mukhe bolish na, kintu tor kajer moddhe seta dekha jay. ❤️
+Tor moddhe ekta khub shundor softness ache. Tui manushder niye care koris, choto choto jinish notice koris, jar jonno tor bhalobasha ache tar jonno nijer moto kore chesta koris. Hoyto sobsomoy tui seta mukhe bolish na, kintu tor kajer moddhe seta dekha jay. ❤️️
 
 Tor kichu stubbornness ache, kichu paglamo ache, kichu mood swing ache, kokhono tui unnecessarily overthink koris, abar kokhono nijer kotha nijer moddhei rekhe dish. Kintu janis ki? Ei sobkichu milei tui tui. Aar amar kache tor ei perfect, real version-tai sobcheye beshi precious. 🥹❤️
 
@@ -64,7 +64,7 @@ Every time I imagine a future and somehow you're already there in it. ❤️
 You have become such a beautiful part of my life that sometimes I can't remember what it felt like before you were in it. 🫂
 And if someday you ever wonder whether you're loved, I hope you remember this: ❤️
 There is someone who looks at you and sees far more than just a pretty face. 🥹
-Someone who sees your heart. ❤️
+Someone who sees your heart. ❤️️
 Someone who sees how hard you try. 🫶
 Someone who notices the little things. ✨
 Someone who is proud of the person you are becoming. ❤️
@@ -74,7 +74,7 @@ That someone is me. ❤️
 
 I don't know what the future has written for us. I don't know what every tomorrow will look like. But I do know that right now, in this moment, I love you more than I know how to put into words. 🥹❤️
 
-And if I could give you one thing, it would be the ability to see yourself through my eyes for just one minute. 👀❤️️
+And if I could give you one thing, it would be the ability to see yourself through my eyes for just one minute. 👀❤
 Maybe then you'd finally understand why I look at you the way I do.
 Maybe then you'd understand why your smile can change my entire day. 😊❤️
 Maybe then you'd understand why losing you is one of the things I never even want to imagine. 🥹
@@ -141,7 +141,8 @@ export default function Letter() {
                 if (!isLevelCompleted('letter')) {
                     sfx?.success?.()
                     completeLevel('letter', 50)
-                    say('blush', 'Every single word is from the bottom of my heart.', 'smile')
+                    // Replaced 'blush' with happy / smile
+                    say('celebrating', 'Every single word is from the bottom of my heart.', 'smile')
                 }
             }
         }
@@ -160,6 +161,7 @@ export default function Letter() {
         setIsTypingDone(true)
         if (!isLevelCompleted('letter')) {
             completeLevel('letter', 50)
+            say('celebrating', 'Every single word is from the bottom of my heart.', 'smile')
         }
     }
 
